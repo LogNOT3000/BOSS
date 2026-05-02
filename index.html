@@ -39,15 +39,14 @@
 <!-- ТИТРИ (Splash Screen) -->
 <div id="splash">
     <div class="credit-text">CREATED BY</div>
-    <div class="author-name">Рамин AI & Рамин</div>
+    <div class="author-name">GEMINI AI & YOU</div>
     <div class="credit-text">2026</div>
 </div>
 
 <!-- АУДІО ТЕГИ (Помісти свої файли в ту ж папку) -->
-<!-- Зміни назви файлів на ті, що реально лежать на Гітхабі -->
-<audio id="music-menu" src="./menu.mp3" loop></audio>
-<audio id="music-circle" src="./circle.mp3" loop></audio>
-<audio id="music-cube" src="./cube.mp3" loop></audio>
+<audio id="music-menu" src="menu.mp3" loop></audio>
+<audio id="music-circle" src="circle.mp3" loop></audio>
+<audio id="music-cube" src="cube.mp3" loop></audio>
 
 <script>
 // --- Логіка титрів ---
@@ -59,6 +58,12 @@ window.onload = () => {
     }, 3000); // Титри показуються 3 секунди
 };
 
+// --- Логіка музики ---
+const sounds = {
+    menu: document.getElementById('music-menu'),
+    circle: document.getElementById('music-circle'),
+    cube: document.getElementById('music-cube')
+};
 
 function stopAllMusic() {
     Object.values(sounds).forEach(s => { s.pause(); s.currentTime = 0; });
@@ -370,43 +375,21 @@ function draw3DCube() {
 
 // --- СИСТЕМА ГРИ ---
 
-// Отримуємо посилання на елементи
-const sounds = {
-    menu: document.getElementById('music-menu'),
-    circle: document.getElementById('music-circle'),
-    cube: document.getElementById('music-cube')
-};
-
-// Функція для повної зупинки всього
-function stopAllMusic() {
-    for (let key in sounds) {
-        sounds[key].pause();
-        sounds[key].currentTime = 0;
-    }
-}
-
-// ФУНКЦІЯ ЗАПУСКУ ГРИ (ОНОВЛЕНА)
 function startGame(boss) {
-    stopAllMusic();
+    // 1. Зупиняємо всю музику перед початком
+    Object.values(sounds).forEach(s => {
+        s.pause();
+        s.currentTime = 0;
+    });
 
-    // Вибираємо трек
-    const track = (boss === 'circle') ? sounds.circle : sounds.cube;
-    
-    // Встановлюємо гучність
-    track.volume = 0.6; 
-    
-    // ГАРАНТОВАНИЙ ЗАПУСК
-    // Спочатку кажемо браузеру завантажити файл, потім грати
-    track.load(); 
-    let playPromise = track.play();
+    // 2. Визначаємо, який трек грати
+    let trackToPlay = (boss === 'circle') ? sounds.circle : sounds.cube;
 
-    if (playPromise !== undefined) {
-        playPromise.catch(error => {
-            console.log("Браузер заблокував автоплей треку. Спробуй клікнути ще раз.");
-            // Спроба повторного запуску через 100мс
-            setTimeout(() => track.play(), 100);
-        });
-    }
+    // 3. Запускаємо обраний трек
+    trackToPlay.play().catch(e => {
+        console.warn("Музика не змогла запуститися автоматично. Потрібен клік користувача.");
+    });
+
     // 4. Ініціалізація гри (твій існуючий код)
     currentBoss = boss;
     gameActive = true;
