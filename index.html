@@ -644,6 +644,20 @@ setInterval(() => {
     if (!gameActive || isHacking) return; // Таймер стоит во время взлома
     timeLeft--; timerEl.innerText = timeLeft;
     if (timeLeft <= 0) {
+        if (timeLeft <= 0) {
+    gameActive = false;
+    
+    // Додаємо кубок за поточного боса
+    if (currentBoss) {
+        trophyData[currentBoss]++;
+        localStorage.setItem('bossTrophies', JSON.stringify(trophyData));
+        renderTrophies(); // Оновлюємо візуал відразу
+    }
+
+    canvas.style.filter = 'none';
+    msgEl.style.display = 'block';
+    msgEl.innerHTML = `<h1 style="color:#00ff00; text-shadow: 0 0 20px #00ff00;">${dict[currentLang].surv}</h1><button class="action-btn" onclick="location.reload()">${dict[currentLang].btn_menu}</button>`;
+}
         gameActive = false; canvas.style.filter = 'none'; msgEl.style.display = 'block';
         msgEl.innerHTML = `<h1 style="color:#00ff00; text-shadow: 0 0 20px #00ff00;">${dict[currentLang].surv}</h1><button class="action-btn" onclick="location.reload()">${dict[currentLang].btn_menu}</button>`;
     }
