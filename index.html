@@ -376,21 +376,43 @@ function draw3DCube() {
 
 // --- СИСТЕМА ГРИ ---
 
+// Отримуємо посилання на елементи
+const sounds = {
+    menu: document.getElementById('music-menu'),
+    circle: document.getElementById('music-circle'),
+    cube: document.getElementById('music-cube')
+};
+
+// Функція для повної зупинки всього
+function stopAllMusic() {
+    for (let key in sounds) {
+        sounds[key].pause();
+        sounds[key].currentTime = 0;
+    }
+}
+
+// ФУНКЦІЯ ЗАПУСКУ ГРИ (ОНОВЛЕНА)
 function startGame(boss) {
-    // 1. Зупиняємо всю музику перед початком
-    Object.values(sounds).forEach(s => {
-        s.pause();
-        s.currentTime = 0;
-    });
+    stopAllMusic();
 
-    // 2. Визначаємо, який трек грати
-    let trackToPlay = (boss === 'circle') ? sounds.circle : sounds.cube;
+    // Вибираємо трек
+    const track = (boss === 'circle') ? sounds.circle : sounds.cube;
+    
+    // Встановлюємо гучність
+    track.volume = 0.6; 
+    
+    // ГАРАНТОВАНИЙ ЗАПУСК
+    // Спочатку кажемо браузеру завантажити файл, потім грати
+    track.load(); 
+    let playPromise = track.play();
 
-    // 3. Запускаємо обраний трек
-    trackToPlay.play().catch(e => {
-        console.warn("Музика не змогла запуститися автоматично. Потрібен клік користувача.");
-    });
-
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            console.log("Браузер заблокував автоплей треку. Спробуй клікнути ще раз.");
+            // Спроба повторного запуску через 100мс
+            setTimeout(() => track.play(), 100);
+        });
+    }
     // 4. Ініціалізація гри (твій існуючий код)
     currentBoss = boss;
     gameActive = true;
