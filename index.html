@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Boss Selection: Circle vs Cube</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; color: white; font-family: 'Courier New', Courier, monospace; }
+        canvas { display: block; }
+        
+        /* UI Styles */
+        #menu { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; font-family: 'Segoe UI', Tahoma, sans-serif;}
+        .boss-card { background: #111; border: 2px solid #333; padding: 20px; margin: 10px; width: 300px; text-align: center; cursor: pointer; transition: 0.3s; border-radius: 10px; }
+        .boss-card:hover { border-color: #00ffff; transform: scale(1.05); background: #1a1a1a; }
+        .difficulty { font-size: 14px; margin-top: 5px; }
+        .med { color: #ffaa00; }
+        .hard { color: #ff0000; font-weight: bold; }
+
+        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; z-index: 10; display: none; }
+        .timer { font-size: 50px; font-weight: bold; color: #00ffff; text-shadow: 0 0 15px #00ffff; }
+        #phase { font-size: 20px; color: #ff0044; margin-top: 10px; font-weight: bold; }
+        
+        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 40px; display: none; text-align: center; z-index: 20; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 20px; }
+        button { background: #222; color: white; border: 2px solid #00ffff; padding: 10px 20px; font-size: 20px; cursor: pointer; margin-top: 20px; font-family: 'Courier New'; transition: 0.2s; }
+        button:hover { background: #00ffff; color: black; }
+    </style>
+<!-- Додай ці блоки у свій HTML файл -->
+
+<style>
+    /* Стилі для титрів */
+    #splash {
+        position: absolute; width: 100%; height: 100%; background: black;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 1000; transition: opacity 1s ease;
+    }
+    .credit-text { font-size: 20px; color: #555; margin: 10px; }
+    .author-name { font-size: 40px; color: white; letter-spacing: 5px; }
+</style>
+
+<!-- ТИТРИ (Splash Screen) -->
+<div id="splash">
+    <div class="credit-text">CREATED BY</div>
+    <div class="author-name">GEMINI AI & YOU</div>
+    <div class="credit-text">2026</div>
+</div>
+
+<!-- АУДІО ТЕГИ (Помісти свої файли в ту ж папку) -->
+<audio id="music-menu" src="menu.mp3" loop></audio>
+<audio id="music-circle" src="circle.mp3" loop></audio>
+<audio id="music-cube" src="cube.mp3" loop></audio>
+
+<script>
+// --- Логіка титрів ---
+window.onload = () => {
+    setTimeout(() => {
+        const splash = document.getElementById('splash');
+        splash.style.opacity = '0';
+        setTimeout(() => splash.style.display = 'none', 1000);
+    }, 3000); // Титри показуються 3 секунди
+};
+
+// --- Логіка музики ---
+const sounds = {
+    menu: document.getElementById('music-menu'),
+    circle: document.getElementById('music-circle'),
+    cube: document.getElementById('music-cube')
+};
+
+function stopAllMusic() {
+    Object.values(sounds).forEach(s => { s.pause(); s.currentTime = 0; });
+}
+
+// Запуск музики меню після першого кліку (обхід блокування браузера)
+window.addEventListener('click', () => {
+    if (sounds.menu.paused && !gameActive) {
+        sounds.menu.play().catch(e => console.log("Чекаю взаємодії..."));
+    }
+}, { once: true });
+
+// Онови функцію startGame(boss)
+function startGame(boss) {
+    stopAllMusic();
+    if (boss === 'circle') sounds.circle.play();
+    if (boss === 'cube') sounds.cube.play();
+    
+    // ... твій існуючий код startGame ...
+}
+
+// Онови логіку повернення в меню (gameOver або Victory)
+function resetToMenu() {
+    stopAllMusic();
+    sounds.menu.play();
+    location.reload(); // або просто поверни меню
+}
+</script>
+</head>
+<body>
+
+<div id="menu">
+    <h1>ВИБЕРИ СВОЮ СУДЬБУ</h1>
+    <div class="boss-card" onclick="startGame('circle')">
+        <h2>СФЕРА (Circle)</h2>
+        <div class="difficulty med">Сложность: 2</div>
+        <p>Лазери, воздушные бомби и гиганскийи лучи</p>
+    </div>
+    <div class="boss-card" onclick="startGame('cube')">
+        <h2>КУБ (The Cube)</h2>
+        <div class="difficulty hard">Сложность: 3</div>
+        <p>Молоти, чорние дири и обман реальности</p>
+    </div>
+</div>
+
+<div id="ui">
+    <div class="timer" id="timer">60</div>
+    <div id="phase">БОЙ НАЧАЛСЯ!</div>
+</div>
+
+<div id="msg"></div>
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const menu = document.getElementById('menu');
+const ui = document.getElementById('ui');
+const timerEl = document.getElementById('timer');
+const phaseEl = document.getElementById('phase');
+const msgEl = document.getElementById('msg');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let gameActive = false;
+let currentBoss = '';
+let timeLeft = 60;
+let frame = 0;
+let shake = 0;
+
+const player = {
+    x: canvas.width / 2,
+    y: canvas.height * 0.8,
+    speed: 8,
+    keys: {}
+};
+
+// Масиви атак для Сфери
+let lasers = [];
+let bombs = [];
+let giantLasers = [];
+
+// Масиви атак для Куба
+let hammers = [];
+let voidCubes = [];
+
+// --- КЛАСИ АТАК СФЕРИ ---
+
+class Laser {
+    constructor() {
+        this.timer = 0;
+        this.state = 'charge';
+        this.targetX = player.x;
+        this.targetY = player.y;
+        this.originX = canvas.width / 2;
+        this.originY = canvas.height / 3;
+    }
+    update() {
+        this.timer++;
+        if (this.timer > 60) this.state = 'fire';
+        if (this.timer > 75) return true;
+        return false;
+    }
+    draw() {
+        ctx.beginPath();
+        ctx.moveTo(this.originX, this.originY);
+        if (this.state === 'charge') {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.lineTo(this.targetX, this.targetY);
+        } else {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#ff0044';
+            ctx.lineWidth = 20;
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ff0044';
+            ctx.lineTo(this.targetX, this.targetY);
+            
+            let dist = this.getDistToPoint(player.x, player.y);
+            if (dist < 15) gameOver("ТЕБЯ СПАЛИЛО!");
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.shadowBlur = 0;
+    }
+    getDistToPoint(px, py) {
+        let x1 = this.originX, y1 = this.originY;
+        let x2 = this.targetX, y2 = this.targetY;
+        let l2 = (x1-x2)**2 + (y1-y2)**2;
+        if (l2 === 0) return Math.sqrt((px-x1)**2 + (py-y1)**2);
+        let t = ((px-x1)*(x2-x1) + (py-y1)*(y2-y1)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.sqrt((px - (x1 + t*(x2-x1)))**2 + (py - (y1 + t*(y2-y1)))**2);
+    }
+}
+
+class GiantLaser {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.timer = 0;
+        this.active = false;
+    }
+    update() {
+        this.timer++;
+        if (this.timer > 40) this.active = true;
+        if (this.timer > 60) return true;
+        return false;
+    }
+    draw() {
+        if (!this.active) {
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
+            ctx.fillRect(this.x - 50, 0, 100, canvas.height);
+        } else {
+            ctx.fillStyle = '#00ffff';
+            ctx.shadowBlur = 50;
+            ctx.shadowColor = '#00ffff';
+            ctx.fillRect(this.x - 60, 0, 120, canvas.height);
+            if (player.x > this.x - 65 && player.x < this.x + 65) gameOver("ВАУ ТИ ТЕПЕРЬ ПРАХ!");
+        }
+        ctx.shadowBlur = 0;
+    }
+}
+
+class Bomb {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = -50;
+        this.z = 600;
+        this.speedZ = 6 + Math.random() * 4;
+    }
+    update() {
+        this.z -= this.speedZ;
+        this.y += 3;
+        if (this.z <= 0) {
+            let d = Math.sqrt((this.x - player.x)**2 + (this.y - player.y)**2);
+            if (d < 70) gameOver("БОМБА ТЕБЕ!");
+            return true;
+        }
+        return false;
+    }
+    draw() {
+        let scale = 600 / (this.z + 1);
+        ctx.fillStyle = '#ffaa00';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 12 * scale, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+// --- КЛАСИ АТАК КУБА ---
+
+class Hammer {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = -100;
+        this.speed = 12;
+    }
+    update() {
+        this.y += this.speed;
+        if (this.y > canvas.height) return true;
+        if (Math.abs(this.x - player.x) < 30 && Math.abs(this.y - player.y) < 50) gameOver("РОЗДАВЛЕН МОЛОТОМ!");
+        return false;
+    }
+    draw() {
+        ctx.fillStyle = '#666';
+        ctx.fillRect(this.x - 5, this.y - 40, 10, 40);
+        ctx.fillStyle = '#eee';
+        ctx.fillRect(this.x - 20, this.y, 40, 30);
+    }
+}
+
+class VoidCube {
+    constructor() {
+        this.x = Math.random() * (canvas.width - 100) + 50;
+        this.y = Math.random() * (canvas.height / 2) + canvas.height / 3;
+        this.timer = 0;
+        this.size = 30;
+        this.radius = 0;
+        this.state = 'warning'; // 3 стадії: warning -> solid -> exploding
+    }
+    
+    update() {
+        this.timer++;
+        
+        // Зміна стадій залежно від часу
+        if (this.timer === 30) this.state = 'solid'; // Через пів секунди з'являється куб
+        if (this.timer === 60) this.state = 'exploding'; // Ще через пів секунди — вибух
+        
+        if (this.state === 'exploding') {
+            this.radius += 12; // Збільшуємо радіус вибуху
+        }
+        
+        if (this.radius > 150) return true; // Зникає, коли коло стає занадто великим
+        
+        // Перевірка шкоди (вбиває тільки під час вибуху)
+        if (this.state === 'exploding') {
+            let d = Math.sqrt((this.x - player.x)**2 + (this.y - player.y)**2);
+            if (d < this.radius) gameOver("УДАЧИ В ДРУГОЙ ВСЕЛЕННОЙ!");
+        }
+        return false;
+    }
+    
+    draw() {
+        if (this.state === 'warning') {
+            // Малюємо попереджувальну червону точку, яка блимає
+            if (this.timer % 10 < 5) {
+                ctx.fillStyle = '#ff0000';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'red';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 6, 0, Math.PI*2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        } else {
+            // Малюємо сам чорний куб (стадії solid та exploding)
+            ctx.fillStyle = 'black';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ff0000'; // Додаємо йому зловісне червоне світіння
+            ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+            ctx.shadowBlur = 0;
+            
+            // Малюємо розширення кола
+            if (this.state === 'exploding') {
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+                ctx.stroke();
+            }
+        }
+    }
+}
+// --- ЛОГІКА КУБА (3D) ---
+let cubeAngle = 0;
+function draw3DCube() {
+    cubeAngle += 0.03;
+    const size = 80 + Math.sin(frame/10)*10;
+    const cx = canvas.width/2;
+    const cy = canvas.height/3;
+
+    let vertices = [];
+    for(let x=-1; x<=1; x+=2) {
+        for(let y=-1; y<=1; y+=2) {
+            for(let z=-1; z<=1; z+=2) {
+                let x1 = x * Math.cos(cubeAngle) - z * Math.sin(cubeAngle);
+                let z1 = x * Math.sin(cubeAngle) + z * Math.cos(cubeAngle);
+                let y1 = y * Math.cos(cubeAngle/2) - z1 * Math.sin(cubeAngle/2);
+                let z2 = y * Math.sin(cubeAngle/2) + z1 * Math.cos(cubeAngle/2);
+                
+                let p = 400 / (400 + z2 * size);
+                vertices.push({ x: cx + x1 * size * p, y: cy + y1 * size * p });
+            }
+        }
+    }
+
+    ctx.strokeStyle = '#00ffff';
+    ctx.lineWidth = 2;
+    const connections = [[0,1],[1,3],[3,2],[2,0],[4,5],[5,7],[7,6],[6,4],[0,4],[1,5],[2,6],[3,7]];
+    connections.forEach(([i, j]) => {
+        ctx.beginPath();
+        ctx.moveTo(vertices[i].x, vertices[i].y);
+        ctx.lineTo(vertices[j].x, vertices[j].y);
+        ctx.stroke();
+    });
+}
+
+// --- СИСТЕМА ГРИ ---
+
+function startGame(boss) {
+    // 1. Зупиняємо всю музику перед початком
+    Object.values(sounds).forEach(s => {
+        s.pause();
+        s.currentTime = 0;
+    });
+
+    // 2. Визначаємо, який трек грати
+    let trackToPlay = (boss === 'circle') ? sounds.circle : sounds.cube;
+
+    // 3. Запускаємо обраний трек
+    trackToPlay.play().catch(e => {
+        console.warn("Музика не змогла запуститися автоматично. Потрібен клік користувача.");
+    });
+
+    // 4. Ініціалізація гри (твій існуючий код)
+    currentBoss = boss;
+    gameActive = true;
+    timeLeft = 60;
+    frame = 0;
+    shake = 0;
+    
+    lasers = []; bombs = []; giantLasers = [];
+    hammers = []; voidCubes = [];
+    
+    menu.style.display = 'none';
+    ui.style.display = 'block';
+    msgEl.style.display = 'none';
+    
+    player.x = canvas.width / 2;
+    player.y = canvas.height * 0.8;
+    
+    phaseEl.innerText = (boss === 'circle') ? "PHASE 1: TARGETING..." : "SURVIVE THE CUBE";
+    phaseEl.style.color = (boss === 'circle') ? "#ff0044" : "#00ffff";
+}
+function gameOver(text) {
+    gameActive = false;
+    canvas.style.filter = 'none'; // Скидаємо інверсію
+    msgEl.style.display = 'block';
+    msgEl.innerHTML = `<h1 style="color:red; text-shadow: 0 0 20px red;">${text}</h1><button onclick="location.reload()">В МЕНЮ</button>`;
+}
+
+window.addEventListener('keydown', e => player.keys[e.code] = true);
+window.addEventListener('keyup', e => player.keys[e.code] = false);
+
+function loop() {
+    if (!gameActive) { requestAnimationFrame(loop); return; }
+
+    // Ефект інверсії тільки для Куба на 15 секунді
+    if (currentBoss === 'cube' && timeLeft <= 15 && frame % 30 < 15) {
+        canvas.style.filter = 'invert(1)';
+    } else {
+        canvas.style.filter = 'none';
+    }
+
+    if (shake > 0) {
+        ctx.save();
+        ctx.translate(Math.random()*shake - shake/2, Math.random()*shake - shake/2);
+        shake -= 0.5;
+    }
+
+    ctx.clearRect(-100, -100, canvas.width+200, canvas.height+200);
+
+    // Малювання сцени для Сфери
+    if (currentBoss === 'circle') {
+        ctx.strokeStyle = '#111';
+        for(let i=-200; i<canvas.width+200; i+=60) {
+            ctx.beginPath();
+            ctx.moveTo(canvas.width/2, canvas.height/3);
+            ctx.lineTo(i, canvas.height);
+            ctx.stroke();
+        }
+    }
+
+    // Рух гравця та обмеження сцени (спільні для обох босів)
+    if (player.keys['KeyA'] || player.keys['ArrowLeft']) player.x -= player.speed;
+    if (player.keys['KeyD'] || player.keys['ArrowRight']) player.x += player.speed;
+    if (player.keys['KeyW'] || player.keys['ArrowUp']) player.y -= player.speed;
+    if (player.keys['KeyS'] || player.keys['ArrowDown']) player.y += player.speed;
+
+    player.x = Math.max(20, Math.min(canvas.width - 20, player.x));
+    player.y = Math.max(canvas.height / 3 + 50, Math.min(canvas.height - 20, player.y));
+
+    // --- ЛОГІКА БОСІВ ---
+    if (currentBoss === 'circle') {
+        // Фази Сфери
+        if (frame % 25 === 0) lasers.push(new Laser());
+        
+        if (timeLeft <= 30) {
+            if (frame % 20 === 0 && timeLeft === 30) phaseEl.innerText = "PHASE 2: AIR STRIKE";
+            if (frame % 20 === 0) bombs.push(new Bomb());
+        }
+        
+        if (timeLeft <= 15) {
+            if (frame % 40 === 0 && timeLeft === 15) phaseEl.innerText = "FINAL PHASE: CEILING LASERS";
+            if (frame % 40 === 0) giantLasers.push(new GiantLaser());
+        }
+
+        // Оновлення масивів
+        lasers = lasers.filter(l => { l.draw(); return !l.update(); });
+        bombs = bombs.filter(b => { b.draw(); return !b.update(); });
+        giantLasers = giantLasers.filter(g => { g.draw(); return !g.update(); });
+
+        // Малювання Сфери
+        ctx.fillStyle = '#110000';
+        ctx.beginPath();
+        ctx.arc(canvas.width/2, canvas.height/3, 70 + Math.sin(frame/5)*10, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = (timeLeft <= 15 && frame % 4 < 2) ? 'white' : '#ff0000';
+        ctx.beginPath();
+        ctx.arc(canvas.width/2, canvas.height/3, 25, 0, Math.PI*2);
+        ctx.fill();
+
+    } else if (currentBoss === 'cube') {
+        // Фази Куба
+        if (frame % 15 === 0) hammers.push(new Hammer());
+        
+        if (timeLeft <= 30) {
+            if (frame % 40 === 0 && timeLeft === 30) {
+                phaseEl.innerText = "PHASE 2: VOID ZONES";
+                phaseEl.style.color = "#ff0000";
+            }
+            if (frame % 40 === 0) voidCubes.push(new VoidCube());
+        }
+        
+        if (timeLeft <= 15) {
+            if (frame === 15 * 60) phaseEl.innerText = "FINAL PHASE: REALITY DISTORTION"; // 60 fps * 15 sec
+            shake = 10; 
+        }
+
+        // Оновлення масивів
+        hammers = hammers.filter(h => { h.draw(); return !h.update(); });
+        voidCubes = voidCubes.filter(v => { v.draw(); return !v.update(); });
+
+        // Малювання Куба
+        draw3DCube();
+    }
+
+    // Малювання гравця
+    ctx.fillStyle = '#00ffff';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#00ffff';
+    ctx.fillRect(player.x - 12, player.y - 12, 24, 24);
+    ctx.fillStyle = 'white';
+    ctx.fillRect(player.x - 2, player.y - 2, 4, 4); // Точка хітбоксу
+    ctx.shadowBlur = 0;
+
+    if (shake > 0) ctx.restore();
+
+    frame++;
+    requestAnimationFrame(loop);
+}
+
+setInterval(() => {
+    if (!gameActive) return;
+    timeLeft--;
+    timerEl.innerText = timeLeft;
+    if (timeLeft <= 0) {
+        gameActive = false;
+        canvas.style.filter = 'none';
+        msgEl.style.display = 'block';
+        msgEl.innerHTML = `<h1 style="color:#00ff00; text-shadow: 0 0 20px #00ff00;">ВИЖИВ!</h1><button onclick="location.reload()">В МЕНЮ</button>`;
+    }
+}, 1000);
+
+loop();
+</script>
+</body>
+</html>
