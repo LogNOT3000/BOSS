@@ -59,12 +59,6 @@ window.onload = () => {
     }, 3000); // Титри показуються 3 секунди
 };
 
-// --- Логіка музики ---
-const sounds = {
-    menu: document.getElementById('music-menu'),
-    circle: document.getElementById('music-circle'),
-    cube: document.getElementById('music-cube')
-};
 
 function stopAllMusic() {
     Object.values(sounds).forEach(s => { s.pause(); s.currentTime = 0; });
