@@ -282,7 +282,7 @@ class Laser { /* ... твой класс Laser (без изменений, но 
 
 class GiantLaser {
     constructor() { this.x = Math.random()*canvas.width; this.timer=0; this.active=false; }
-    update() { this.timer++; if(this.timer>40) this.active=true; return this.timer>60; }
+    update() { this.timer++; if(this.timer>100) this.active=true; return this.timer>60; }
     draw() {
         if(!this.active) { ctx.fillStyle='rgba(0,255,255,0.2)'; ctx.fillRect(this.x-50,0,100,canvas.height); }
         else {
@@ -336,7 +336,7 @@ class Spinner {
         let cx = canvas.width/2, cy = canvas.height/3;
         ctx.strokeStyle = '#a020f0'; ctx.lineWidth = 15; ctx.shadowBlur = 20; ctx.shadowColor = '#a020f0';
         for(let i=0; i<4; i++) { // 4 луча
-            let a = this.angle + (Math.PI/2)*i;
+            let a = this.angle + 0.02;
             ctx.beginPath(); ctx.moveTo(cx, cy);
             let ex = cx + Math.cos(a)*2000, ey = cy + Math.sin(a)*2000;
             ctx.lineTo(ex, ey); ctx.stroke();
