@@ -6,7 +6,19 @@
     <style>
         body { margin: 0; overflow: hidden; background: #000; color: white; font-family: 'Courier New', Courier, monospace; }
         canvas { display: block; }
-        
+
+        .trophy-case {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+    margin-top: 10px;
+    min-height: 20px;
+}
+.trophy-icon {
+    font-size: 14px;
+    filter: drop-shadow(0 0 2px gold);
+}
         /* Language Selector */
         #lang-selector { position: absolute; top: 10px; right: 10px; z-index: 200; display: flex; gap: 5px; }
         .lang-btn { background: #222; border: 1px solid #555; color: white; padding: 5px 10px; cursor: pointer; border-radius: 5px; transition: 0.2s;}
@@ -86,17 +98,29 @@
     <div class="boss-container">
         <div class="boss-card" onclick="startGame('circle')">
             <h2 data-i18n="boss_circle">СФЕРА (Circle)</h2>
+            <div class="trophy-case" id="trophies-circle"></div>
+<!-- І так само для інших карток -->
+<div class="trophy-case" id="trophies-cube"></div>
+<div class="trophy-case" id="trophies-tesseract"></div>
             <div class="difficulty med" data-i18n="diff_2">Сложность: 2</div>
             <p data-i18n="desc_circle">Лазери, воздушные бомби и гиганскийи лучи</p>
         </div>
         <div class="boss-card" onclick="startGame('cube')">
             <h2 data-i18n="boss_cube">КУБ (The Cube)</h2>
+            <div class="trophy-case" id="trophies-circle"></div>
+<!-- І так само для інших карток -->
+<div class="trophy-case" id="trophies-cube"></div>
+<div class="trophy-case" id="trophies-tesseract"></div>
             <div class="difficulty hard" data-i18n="diff_3">Сложность: 3</div>
             <p data-i18n="desc_cube">Молоти, чорние дири и обман реальности</p>
         </div>
         <div class="boss-card locked" id="card-tesseract" onclick="startGame('tesseract')">
             <div class="locked-overlay" id="lock-overlay">🔒<span data-i18n="locked_hint">CODE REQ</span></div>
             <h2>ТЕСЕРАКТ</h2>
+            <div class="trophy-case" id="trophies-circle"></div>
+<!-- І так само для інших карток -->
+<div class="trophy-case" id="trophies-cube"></div>
+<div class="trophy-case" id="trophies-tesseract"></div>
             <div class="difficulty insane" data-i18n="diff_5">Сложность: 5</div>
             <p data-i18n="desc_tesseract">4D-глитчи, лучи во все стороны, взлом реальности</p>
         </div>
@@ -176,6 +200,28 @@ function setLang(lang) {
     document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelector(`.lang-btn[onclick="setLang('${lang}')"]`).classList.add('active');
 }
+
+    // Завантажуємо кубки або створюємо порожній об'єкт
+let trophyData = JSON.parse(localStorage.getItem('bossTrophies')) || { circle: 0, cube: 0, tesseract: 0 };
+
+// Функція для малювання кубків на екрані
+function renderTrophies() {
+    for (let boss in trophyData) {
+        const container = document.getElementById(`trophies-${boss}`);
+        if (container) {
+            container.innerHTML = ""; // Очищуємо
+            for (let i = 0; i < trophyData[boss]; i++) {
+                const span = document.createElement('span');
+                span.className = 'trophy-icon';
+                span.innerText = '🏆';
+                container.appendChild(span);
+            }
+        }
+    }
+}
+
+// Викликаємо при старті
+renderTrophies();
 
 // ================= БАЗА =================
 const canvas = document.getElementById('game');
@@ -281,19 +327,40 @@ class Laser { /* ... твой класс Laser (без изменений, но 
 }
 
 class GiantLaser {
-    constructor() { this.x = Math.random()*canvas.width; this.timer=0; this.active=false; }
-    update() { this.timer++; if(this.timer>100) this.active=true; return this.timer>60; }
+    constructor() { 
+        this.x = Math.random() * canvas.width; 
+        this.timer = 0; 
+        this.active = false; 
+    }
+    update() { 
+        this.timer++; 
+        // 120 кадрів = 2 секунди зарядки
+        if (this.timer > 120) this.active = true; 
+        
+        // Лазер зникає через 140 кадрів (тобто б'є 20 кадрів або ~0.3 сек)
+        return this.timer > 140; 
+    }
     draw() {
-        if(!this.active) { ctx.fillStyle='rgba(0,255,255,0.2)'; ctx.fillRect(this.x-50,0,100,canvas.height); }
-        else {
-            ctx.fillStyle=(currentBoss==='tesseract')?'#a020f0':'#00ffff'; ctx.shadowBlur=50; ctx.shadowColor=ctx.fillStyle;
-            ctx.fillRect(this.x-60,0,120,canvas.height);
-            if(Math.abs(player.x - this.x) < 65) gameOver(dict[currentLang].game_over);
+        if (!this.active) { 
+            // Світла смуга-попередження (зарядка)
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.1)'; 
+            ctx.fillRect(this.x - 50, 0, 100, canvas.height); 
+            
+            // Маленький індикатор прогресу зарядки (опціонально)
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx.fillRect(this.x - 50, canvas.height, 100, -(canvas.height * (this.timer / 120)));
+        } else {
+            // Момент пострілу
+            ctx.fillStyle = (currentBoss === 'tesseract') ? '#a020f0' : '#00ffff'; 
+            ctx.shadowBlur = 50; 
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.fillRect(this.x - 60, 0, 120, canvas.height);
+            
+            if (Math.abs(player.x - this.x) < 65) gameOver(dict[currentLang].game_over);
         }
-        ctx.shadowBlur=0;
+        ctx.shadowBlur = 0;
     }
 }
-
 class Bomb {
     constructor() { this.x = Math.random()*canvas.width; this.y = -50; this.z = 600; this.speedZ = 6+Math.random()*4; }
     update() {
@@ -331,12 +398,12 @@ class VoidCube {
 // НОВАЯ АТАКА ТЕССЕРАКТА: Spinner
 class Spinner {
     constructor() { this.angle = 0; this.timer = 0; }
-    update() { this.timer++; this.angle += 0.05; return this.timer > 150; }
+    update() { this.timer++; this.angle += 0.02; return this.timer > 150; }
     draw() {
         let cx = canvas.width/2, cy = canvas.height/3;
         ctx.strokeStyle = '#a020f0'; ctx.lineWidth = 15; ctx.shadowBlur = 20; ctx.shadowColor = '#a020f0';
         for(let i=0; i<4; i++) { // 4 луча
-            let a = this.angle + 0.02;
+            let a = this.angle + (Math.PI/2)*i;
             ctx.beginPath(); ctx.moveTo(cx, cy);
             let ex = cx + Math.cos(a)*2000, ey = cy + Math.sin(a)*2000;
             ctx.lineTo(ex, ey); ctx.stroke();
